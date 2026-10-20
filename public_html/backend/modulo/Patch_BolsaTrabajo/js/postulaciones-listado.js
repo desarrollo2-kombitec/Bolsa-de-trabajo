@@ -1,27 +1,32 @@
+
 /**
  * ============================================================
  * LISTADO DE POSTULACIONES
  * Patch_BolsaTrabajo
  * ============================================================
- *
- * Funciones relacionadas con:
- * - Filtros de postulaciones
- * - Búsqueda
- * - Filtrado por vacante y estado
- * - Limpieza de filtros
- * - Paginación independiente de las tablas
- * - Interacciones del listado
+ * - Búsqueda dinámica mediante AJAX.
+ * - Filtros combinables por texto, vacante y estado.
+ * - Funciona también al borrar caracteres.
+ * - Sin recargar la página completa.
+ * - Conserva el foco, el cursor y el scroll.
+ * - Evita que respuestas antiguas reemplacen resultados nuevos.
+ * - Paginación independiente por tabla.
+ * - Eventos delegados para sobrevivir al reemplazo AJAX del panel.
  * ============================================================
  */
 
 (function (window, document) {
     'use strict';
 
-    /**
-     * ============================================================
-     * OBTENER ELEMENTOS
-     * ============================================================
-     */
+    let temporizadorBusqueda = null;
+    let solicitudActual = null;
+    let identificadorSolicitud = 0;
+
+    const RETARDO_BUSQUEDA = 300;
+
+    /* ============================================================
+       OBTENER ELEMENTOS
+    ============================================================ */
 
     function obtenerFormularioFiltros() {
         return document.getElementById('formFiltros');
@@ -39,92 +44,390 @@
         return document.getElementById('buscar');
     }
 
-    /**
-     * ============================================================
-     * FILTRAR POR VACANTE
-     * ============================================================
-     */
+    function obtenerPanelPostulaciones() {
+        return document.getElementById('panelPostulaciones');
+    }
+
+    /* ============================================================
+       OBTENER FILTROS ACTUALES
+    ============================================================ */
+
+    function obtenerFiltrosActuales() {
+        const campoBusqueda = obtenerCampoBusqueda();
+        const selectVacante = obtenerSelectVacante();
+        const selectEstado = obtenerSelectEstado();
+
+        return {
+            buscar: campoBusqueda ? campoBusqueda.value : '',
+            vacante: selectVacante ? selectVacante.value : '0',
+            estado: selectEstado ? selectEstado.value : ''
+        };
+    }
+
+    function existenFiltrosActivos() {
+        const filtros = obtenerFiltrosActuales();
+
+        return (
+            filtros.buscar.trim() !== '' ||
+            (filtros.vacante !== '' && filtros.vacante !== '0') ||
+            filtros.estado !== ''
+        );
+    }
+
+    function actualizarEstadoFiltros() {
+        const formulario = obtenerFormularioFiltros();
+
+        if (formulario) {
+            formulario.classList.toggle(
+                'has-filters',
+                existenFiltrosActivos()
+            );
+        }
+    }
+
+    /* ============================================================
+       GUARDAR Y RESTAURAR ESTADO DE LA PÁGINA
+    ============================================================ */
+
+    function guardarEstadoPagina() {
+        const elementoActivo = document.activeElement;
+        const panel = obtenerPanelPostulaciones();
+
+        let elementoId = '';
+        let inicioSeleccion = null;
+        let finSeleccion = null;
+        let direccionSeleccion = null;
+
+        if (
+            panel &&
+            elementoActivo &&
+            panel.contains(elementoActivo)
+        ) {
+            elementoId = elementoActivo.id || '';
+
+            if (
+                elementoActivo.tagName === 'INPUT' ||
+                elementoActivo.tagName === 'TEXTAREA'
+            ) {
+                try {
+                    inicioSeleccion = elementoActivo.selectionStart;
+                    finSeleccion = elementoActivo.selectionEnd;
+                    direccionSeleccion = elementoActivo.selectionDirection;
+                } catch (error) {
+                    inicioSeleccion = null;
+                    finSeleccion = null;
+                    direccionSeleccion = null;
+                }
+            }
+        }
+
+        return {
+            scrollX: window.scrollX,
+            scrollY: window.scrollY,
+            elementoId: elementoId,
+            inicioSeleccion: inicioSeleccion,
+            finSeleccion: finSeleccion,
+            direccionSeleccion: direccionSeleccion
+        };
+    }
+
+    function restaurarEstadoPagina(estado) {
+        if (!estado) {
+            return;
+        }
+
+        if (estado.elementoId) {
+            const elemento = document.getElementById(estado.elementoId);
+
+            if (elemento) {
+                try {
+                    elemento.focus({ preventScroll: true });
+                } catch (error) {
+                    elemento.focus();
+                }
+
+                if (
+                    estado.inicioSeleccion !== null &&
+                    estado.finSeleccion !== null &&
+                    typeof elemento.setSelectionRange === 'function'
+                ) {
+                    try {
+                        elemento.setSelectionRange(
+                            estado.inicioSeleccion,
+                            estado.finSeleccion,
+                            estado.direccionSeleccion || 'none'
+                        );
+                    } catch (error) {
+                        // Algunos controles no permiten seleccionar texto.
+                    }
+                }
+            }
+        }
+
+        window.scrollTo(estado.scrollX, estado.scrollY);
+    }
+
+    /* ============================================================
+       ACTUALIZAR URL SIN RECARGAR
+    ============================================================ */
+
+    function actualizarURLFiltros() {
+        const filtros = obtenerFiltrosActuales();
+        const url = new URL(window.location.href);
+
+        url.searchParams.delete('ajax');
+        url.searchParams.delete('buscar');
+        url.searchParams.delete('vacante');
+        url.searchParams.delete('estado');
+
+        if (filtros.buscar.trim() !== '') {
+            url.searchParams.set('buscar', filtros.buscar.trim());
+        }
+
+        if (filtros.vacante !== '' && filtros.vacante !== '0') {
+            url.searchParams.set('vacante', filtros.vacante);
+        }
+
+        if (filtros.estado !== '') {
+            url.searchParams.set('estado', filtros.estado);
+        }
+
+        window.history.replaceState({}, '', url.toString());
+    }
+
+    /* ============================================================
+       FILTROS AJAX
+    ============================================================ */
+
+    async function aplicarFiltrosAjax(opciones) {
+        opciones = opciones || {};
+
+        if (temporizadorBusqueda !== null) {
+            window.clearTimeout(temporizadorBusqueda);
+            temporizadorBusqueda = null;
+        }
+
+        const formulario = obtenerFormularioFiltros();
+        const panelActual = obtenerPanelPostulaciones();
+
+        if (!formulario || !panelActual) {
+            return;
+        }
+
+        actualizarEstadoFiltros();
+
+        if (solicitudActual) {
+            solicitudActual.abort();
+            solicitudActual = null;
+        }
+
+        const numeroSolicitud = ++identificadorSolicitud;
+        const controlador = new AbortController();
+
+        solicitudActual = controlador;
+
+        const url = new URL(
+            formulario.getAttribute('action') || 'Admin_Postulaciones.php',
+            window.location.href
+        );
+
+        const filtros = obtenerFiltrosActuales();
+
+        /*
+         * Construimos la URL con los tres filtros actuales.
+         * Los valores vacíos también se contemplan para que
+         * borrar caracteres elimine el criterio anterior.
+         */
+        url.search = '';
+        url.searchParams.set('buscar', filtros.buscar.trim());
+        url.searchParams.set('vacante', filtros.vacante || '0');
+        url.searchParams.set('estado', filtros.estado);
+        url.searchParams.set('ajax', 'listado');
+
+        const botonesSubmit = formulario.querySelectorAll(
+            'button[type="submit"], input[type="submit"]'
+        );
+
+        botonesSubmit.forEach(function (boton) {
+            boton.disabled = true;
+        });
+
+        try {
+            const respuesta = await window.fetch(url.toString(), {
+                method: 'GET',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'text/html'
+                },
+                credentials: 'same-origin',
+                signal: controlador.signal
+            });
+
+            if (!respuesta.ok) {
+                throw new Error(
+                    'No se pudo actualizar el listado. HTTP ' +
+                    respuesta.status
+                );
+            }
+
+            const html = await respuesta.text();
+
+            /*
+             * Si se inició otra búsqueda mientras esta esperaba,
+             * ignoramos esta respuesta.
+             */
+            if (numeroSolicitud !== identificadorSolicitud) {
+                return;
+            }
+
+            const documento = new DOMParser().parseFromString(
+                html,
+                'text/html'
+            );
+
+            const panelNuevo = documento.getElementById(
+                'panelPostulaciones'
+            );
+
+            const panelParaReemplazar = obtenerPanelPostulaciones();
+
+            if (!panelNuevo || !panelParaReemplazar) {
+                throw new Error(
+                    'La respuesta del servidor no contiene ' +
+                    'el panel #panelPostulaciones.'
+                );
+            }
+
+            /*
+             * Guardamos los valores que el usuario tiene en pantalla
+             * justo antes de reemplazar el panel. Esto evita perder
+             * caracteres escritos mientras la petición estaba activa.
+             */
+            const filtrosEnPantalla = obtenerFiltrosActuales();
+            const estadoPagina = guardarEstadoPagina();
+
+            const panelReemplazo = document.importNode(
+                panelNuevo,
+                true
+            );
+
+            panelParaReemplazar.replaceWith(panelReemplazo);
+
+            /*
+             * Recuperamos los controles nuevos, porque los anteriores
+             * dejaron de existir al reemplazar el panel.
+             */
+            const nuevoCampoBusqueda = obtenerCampoBusqueda();
+            const nuevoSelectVacante = obtenerSelectVacante();
+            const nuevoSelectEstado = obtenerSelectEstado();
+
+            if (nuevoCampoBusqueda) {
+                nuevoCampoBusqueda.value = filtrosEnPantalla.buscar;
+            }
+
+            if (nuevoSelectVacante) {
+                nuevoSelectVacante.value = filtrosEnPantalla.vacante;
+            }
+
+            if (nuevoSelectEstado) {
+                nuevoSelectEstado.value = filtrosEnPantalla.estado;
+            }
+
+            actualizarEstadoFiltros();
+
+            /*
+             * Solo reinicializamos la paginación de postulaciones.
+             * La paginación de CV generales permanece independiente.
+             */
+            inicializarPaginacionTablaPorId('postulaciones');
+
+            actualizarURLFiltros();
+            restaurarEstadoPagina(estadoPagina);
+        } catch (error) {
+            if (error.name !== 'AbortError') {
+                console.error(
+                    'Error al actualizar las postulaciones:',
+                    error
+                );
+            }
+        } finally {
+            if (numeroSolicitud === identificadorSolicitud) {
+                solicitudActual = null;
+
+                const formularioActual = obtenerFormularioFiltros();
+
+                if (formularioActual) {
+                    const botonesActuales = formularioActual.querySelectorAll(
+                        'button[type="submit"], input[type="submit"]'
+                    );
+
+                    botonesActuales.forEach(function (boton) {
+                        boton.disabled = false;
+                    });
+
+                    actualizarEstadoFiltros();
+                }
+            }
+        }
+    }
+
+    /* ============================================================
+       BÚSQUEDA DINÁMICA
+    ============================================================ */
+
+    function programarBusqueda() {
+        actualizarEstadoFiltros();
+
+        if (temporizadorBusqueda !== null) {
+            window.clearTimeout(temporizadorBusqueda);
+        }
+
+        temporizadorBusqueda = window.setTimeout(function () {
+            temporizadorBusqueda = null;
+            aplicarFiltrosAjax();
+        }, RETARDO_BUSQUEDA);
+    }
+
+    function buscarPostulaciones() {
+        if (temporizadorBusqueda !== null) {
+            window.clearTimeout(temporizadorBusqueda);
+            temporizadorBusqueda = null;
+        }
+
+        aplicarFiltrosAjax();
+    }
+
+    /* ============================================================
+       FILTRAR POR VACANTE Y ESTADO
+    ============================================================ */
 
     function filtrarVacante(id) {
         const select = obtenerSelectVacante();
-        const formulario = obtenerFormularioFiltros();
 
-        if (!select || !formulario) {
+        if (!select) {
             return;
         }
 
         const idVacante = parseInt(id, 10);
 
-        if (!Number.isFinite(idVacante) || idVacante <= 0) {
+        if (!Number.isFinite(idVacante) || idVacante < 0) {
             return;
         }
 
         select.value = String(idVacante);
-        formulario.submit();
+        aplicarFiltrosAjax();
     }
-
-    /**
-     * ============================================================
-     * FILTRAR POR ESTADO
-     * ============================================================
-     */
 
     function filtrarEstado(estado) {
         const select = obtenerSelectEstado();
-        const formulario = obtenerFormularioFiltros();
 
-        if (!select || !formulario) {
+        if (!select) {
             return;
         }
 
-        estado = String(estado || '').trim();
-        select.value = estado;
-        formulario.submit();
+        select.value = String(estado || '').trim();
+        aplicarFiltrosAjax();
     }
-
-    /**
-     * ============================================================
-     * REALIZAR BÚSQUEDA
-     * ============================================================
-     */
-
-    function buscarPostulaciones() {
-        const formulario = obtenerFormularioFiltros();
-
-        if (!formulario) {
-            return;
-        }
-
-        formulario.submit();
-    }
-
-    /**
-     * ============================================================
-     * LIMPIAR FILTROS
-     * ============================================================
-     */
-
-    function limpiarFiltros() {
-        const formulario = obtenerFormularioFiltros();
-
-        if (!formulario) {
-            window.location.href = 'Admin_Postulaciones.php';
-            return;
-        }
-
-        const url = new URL(
-            'Admin_Postulaciones.php',
-            window.location.href
-        );
-
-        window.location.href = url.toString();
-    }
-
-    /**
-     * ============================================================
-     * SELECCIONAR VACANTE
-     * ============================================================
-     */
 
     function establecerFiltroVacante(id) {
         const select = obtenerSelectVacante();
@@ -135,177 +438,117 @@
 
         const idVacante = parseInt(id, 10);
 
-        if (!Number.isFinite(idVacante)) {
-            select.value = '0';
-            return;
-        }
+        select.value = (
+            Number.isFinite(idVacante) && idVacante >= 0
+        ) ? String(idVacante) : '0';
 
-        select.value = String(idVacante);
+        actualizarEstadoFiltros();
     }
 
-    /**
-     * ============================================================
-     * OBTENER FILTROS ACTUALES
-     * ============================================================
-     */
+    /* ============================================================
+       LIMPIAR TODOS LOS FILTROS
+    ============================================================ */
 
-    function obtenerFiltrosActuales() {
+    function limpiarFiltros() {
         const campoBusqueda = obtenerCampoBusqueda();
         const selectVacante = obtenerSelectVacante();
         const selectEstado = obtenerSelectEstado();
 
-        return {
-            buscar: campoBusqueda ? campoBusqueda.value.trim() : '',
-            vacante: selectVacante ? selectVacante.value : '0',
-            estado: selectEstado ? selectEstado.value : ''
-        };
+        if (campoBusqueda) {
+            campoBusqueda.value = '';
+        }
+
+        if (selectVacante) {
+            selectVacante.value = '0';
+        }
+
+        if (selectEstado) {
+            selectEstado.value = '';
+        }
+
+        buscarPostulaciones();
     }
 
-    /**
-     * ============================================================
-     * DETECTAR SI EXISTEN FILTROS
-     * ============================================================
-     */
+    /* ============================================================
+       EVENTOS DE FILTROS: DELEGACIÓN
+       IMPORTANTE:
+       Los eventos se registran en document, no directamente en los
+       controles. Así siguen funcionando tras cada reemplazo AJAX.
+    ============================================================ */
 
-    function existenFiltrosActivos() {
-        const filtros = obtenerFiltrosActuales();
-
-        return (
-            filtros.buscar !== '' ||
-            (filtros.vacante !== '' && filtros.vacante !== '0') ||
-            filtros.estado !== ''
-        );
-    }
-
-    /**
-     * ============================================================
-     * ACTUALIZAR ESTADO VISUAL DE LOS FILTROS
-     * ============================================================
-     */
-
-    function actualizarEstadoFiltros() {
-        const formulario = obtenerFormularioFiltros();
-
-        if (!formulario) {
+    function configurarEventosDelegados() {
+        if (document.documentElement.dataset.postulacionesEventos === 'true') {
             return;
         }
 
-        formulario.classList.toggle(
-            'has-filters',
-            existenFiltrosActivos()
-        );
-    }
+        document.documentElement.dataset.postulacionesEventos = 'true';
 
-    /**
-     * ============================================================
-     * ENTER EN BÚSQUEDA
-     * ============================================================
-     */
+        document.addEventListener('input', function (event) {
+            if (
+                event.target &&
+                event.target.id === 'buscar' &&
+                event.target.closest('#formFiltros')
+            ) {
+                programarBusqueda();
+            }
+        });
 
-    function configurarBusqueda() {
-        const campoBusqueda = obtenerCampoBusqueda();
+        document.addEventListener('keydown', function (event) {
+            if (
+                event.target &&
+                event.target.id === 'buscar' &&
+                event.target.closest('#formFiltros') &&
+                event.key === 'Enter'
+            ) {
+                event.preventDefault();
+                buscarPostulaciones();
+            }
+        });
 
-        if (!campoBusqueda) {
-            return;
-        }
+        document.addEventListener('change', function (event) {
+            const elemento = event.target;
 
-        campoBusqueda.addEventListener('keydown', function (event) {
-            if (event.key === 'Enter') {
+            if (!elemento || !elemento.closest('#formFiltros')) {
+                return;
+            }
+
+            if (
+                elemento.id === 'filtroVacante' ||
+                elemento.id === 'filtroEstado'
+            ) {
+                actualizarEstadoFiltros();
+                buscarPostulaciones();
+            }
+        });
+
+        document.addEventListener('submit', function (event) {
+            if (
+                event.target &&
+                event.target.id === 'formFiltros'
+            ) {
                 event.preventDefault();
                 buscarPostulaciones();
             }
         });
     }
 
-    /**
-     * ============================================================
-     * CAMBIOS AUTOMÁTICOS DE FILTROS
-     * ============================================================
-     *
-     * El formulario continúa utilizando GET y submit tradicional.
-     */
-
-    function configurarFiltros() {
-        const selectVacante = obtenerSelectVacante();
-        const selectEstado = obtenerSelectEstado();
-
-        if (selectVacante) {
-            selectVacante.addEventListener('change', function () {
-                actualizarEstadoFiltros();
-            });
-        }
-
-        if (selectEstado) {
-            selectEstado.addEventListener('change', function () {
-                actualizarEstadoFiltros();
-            });
-        }
-    }
-
-    /**
-     * ============================================================
-     * EVITAR DOBLE ENVÍO ACCIDENTAL
-     * ============================================================
-     */
-
-    function configurarFormulario() {
-        const formulario = obtenerFormularioFiltros();
-
-        if (!formulario) {
-            return;
-        }
-
-        formulario.addEventListener('submit', function () {
-            const botones = formulario.querySelectorAll(
-                'button[type="submit"]'
-            );
-
-            botones.forEach(function (boton) {
-                boton.disabled = true;
-            });
-        });
-    }
-
-    /**
-     * ============================================================
-     * SCROLL AL LISTADO DESPUÉS DE FILTRAR
-     * ============================================================
-     */
+    /* ============================================================
+       SCROLL
+    ============================================================ */
 
     function posicionarListado() {
-        const panel = document.getElementById('panelPostulaciones');
-
-        if (!panel) {
-            return;
-        }
-
-        const parametros = new URLSearchParams(
-            window.location.search
-        );
-
-        const tieneFiltros =
-            parametros.has('buscar') ||
-            parametros.has('vacante') ||
-            parametros.has('estado');
-
-        if (!tieneFiltros) {
-            return;
-        }
-
-        // No se realiza scroll automáticamente para conservar
-        // el comportamiento actual del módulo.
+        // No desplaza la página automáticamente.
     }
 
-    /**
-     * ============================================================
-     * PAGINACIÓN: CREAR BOTONES
-     * ============================================================
-     */
+    /* ============================================================
+       PAGINACIÓN: CREAR BOTONES
+    ============================================================ */
 
     function crearBotonPagina(texto, pagina, opciones) {
         opciones = opciones || {};
 
         const boton = document.createElement('button');
+
         boton.type = 'button';
         boton.className = 'patch-pagination-button';
         boton.textContent = String(texto);
@@ -331,11 +574,9 @@
         return boton;
     }
 
-    /**
-     * ============================================================
-     * PAGINACIÓN: NÚMEROS DE PÁGINA
-     * ============================================================
-     */
+    /* ============================================================
+       PAGINACIÓN: NÚMEROS DE PÁGINA
+    ============================================================ */
 
     function obtenerNumerosPagina(paginaActual, totalPaginas) {
         if (totalPaginas <= 0) {
@@ -372,11 +613,9 @@
         return paginas;
     }
 
-    /**
-     * ============================================================
-     * PAGINACIÓN: ACTUALIZAR CONTROLES
-     * ============================================================
-     */
+    /* ============================================================
+       PAGINACIÓN: ACTUALIZAR CONTROLES
+    ============================================================ */
 
     function actualizarControlesPaginacion(estado) {
         const totalRegistros = estado.filas.length;
@@ -415,71 +654,57 @@
 
         estado.controles.replaceChildren();
 
-        const botonAnterior = crearBotonPagina(
-            'Anterior',
-            paginaActual - 1,
-            {
+        estado.controles.appendChild(
+            crearBotonPagina('Anterior', paginaActual - 1, {
                 disabled: paginaActual <= 1,
                 label: 'Ir a la página anterior',
                 onSelect: function (pagina) {
                     cambiarPagina(estado, pagina);
                 }
-            }
+            })
         );
 
-        estado.controles.appendChild(botonAnterior);
-
-        const numerosPagina = obtenerNumerosPagina(
+        obtenerNumerosPagina(
             paginaActual,
             totalPaginas
-        );
-
-        numerosPagina.forEach(function (pagina) {
+        ).forEach(function (pagina) {
             if (pagina === '...') {
                 const separador = document.createElement('span');
+
                 separador.className = 'patch-pagination-ellipsis';
                 separador.textContent = '…';
                 separador.setAttribute('aria-hidden', 'true');
+
                 estado.controles.appendChild(separador);
                 return;
             }
 
-            const boton = crearBotonPagina(
-                pagina,
-                pagina,
-                {
+            estado.controles.appendChild(
+                crearBotonPagina(pagina, pagina, {
                     active: pagina === paginaActual,
                     label: 'Ir a la página ' + pagina,
                     onSelect: function (numeroPagina) {
                         cambiarPagina(estado, numeroPagina);
                     }
-                }
+                })
             );
-
-            estado.controles.appendChild(boton);
         });
 
-        const botonSiguiente = crearBotonPagina(
-            'Siguiente',
-            paginaActual + 1,
-            {
+        estado.controles.appendChild(
+            crearBotonPagina('Siguiente', paginaActual + 1, {
                 disabled:
                     totalPaginas === 0 || paginaActual >= totalPaginas,
                 label: 'Ir a la página siguiente',
                 onSelect: function (pagina) {
                     cambiarPagina(estado, pagina);
                 }
-            }
+            })
         );
-
-        estado.controles.appendChild(botonSiguiente);
     }
 
-    /**
-     * ============================================================
-     * PAGINACIÓN: MOSTRAR FILAS DE LA PÁGINA ACTUAL
-     * ============================================================
-     */
+    /* ============================================================
+       PAGINACIÓN: MOSTRAR FILAS
+    ============================================================ */
 
     function mostrarPagina(estado) {
         const totalRegistros = estado.filas.length;
@@ -506,12 +731,6 @@
         actualizarControlesPaginacion(estado);
     }
 
-    /**
-     * ============================================================
-     * PAGINACIÓN: CAMBIAR PÁGINA
-     * ============================================================
-     */
-
     function cambiarPagina(estado, pagina) {
         const totalPaginas = Math.ceil(
             estado.filas.length / estado.tamanoPagina
@@ -530,15 +749,9 @@
         mostrarPagina(estado);
     }
 
-    /**
-     * ============================================================
-     * PAGINACIÓN: INICIALIZAR UNA TABLA
-     * ============================================================
-     *
-     * El selector de tamaño está en el encabezado del panel.
-     * Los controles de navegación están debajo de la tabla.
-     * Cada tabla conserva su propia paginación independiente.
-     */
+    /* ============================================================
+       PAGINACIÓN: INICIALIZAR UNA TABLA
+    ============================================================ */
 
     function inicializarPaginacionTabla(contenedor) {
         const identificador = contenedor.getAttribute('data-pagination');
@@ -551,21 +764,13 @@
             'table[data-paginated-table="' + identificador + '"]'
         );
 
-        if (!tabla) {
+        if (!tabla || !tabla.tBodies.length) {
             return;
         }
 
         const cuerpo = tabla.tBodies[0];
-
-        if (!cuerpo) {
-            return;
-        }
-
         const filas = Array.from(cuerpo.rows);
 
-        // Buscar el selector fuera del contenedor inferior.
-        // Ejemplos: data-page-size="postulaciones"
-        //           data-page-size="cv-generales"
         const selectorTamano = document.querySelector(
             '[data-page-size="' + identificador + '"]'
         );
@@ -596,35 +801,39 @@
                 estado.tamanoPagina = tamanoInicial;
             }
 
-            selectorTamano.addEventListener('change', function () {
-                const nuevoTamano = parseInt(
-                    selectorTamano.value,
-                    10
-                );
+            /*
+             * El listener se instala una sola vez en cada selector.
+             * Al reemplazar el panel, el nuevo selector obtiene su
+             * propio listener y la tabla de CV generales no se altera.
+             */
+            if (selectorTamano.dataset.paginationListener !== 'true') {
+                selectorTamano.dataset.paginationListener = 'true';
 
-                if (![10, 25, 50].includes(nuevoTamano)) {
-                    selectorTamano.value = String(estado.tamanoPagina);
-                    return;
-                }
+                selectorTamano.addEventListener('change', function () {
+                    const nuevoTamano = parseInt(
+                        selectorTamano.value,
+                        10
+                    );
 
-                estado.tamanoPagina = nuevoTamano;
-                estado.pagina = 1;
-                mostrarPagina(estado);
-            });
+                    if (![10, 25, 50].includes(nuevoTamano)) {
+                        selectorTamano.value = String(estado.tamanoPagina);
+                        return;
+                    }
+
+                    estado.tamanoPagina = nuevoTamano;
+                    estado.pagina = 1;
+
+                    mostrarPagina(estado);
+                });
+            }
         }
 
         mostrarPagina(estado);
     }
 
-    /**
-     * ============================================================
-     * PAGINACIÓN: INICIALIZAR TODAS LAS TABLAS
-     * ============================================================
-     */
-
-    function inicializarPaginacion() {
+    function inicializarPaginacionTablaPorId(identificador) {
         const contenedores = document.querySelectorAll(
-            '[data-pagination]'
+            '[data-pagination="' + identificador + '"]'
         );
 
         contenedores.forEach(function (contenedor) {
@@ -632,29 +841,29 @@
         });
     }
 
-    /**
-     * ============================================================
-     * INICIALIZACIÓN GENERAL
-     * ============================================================
-     */
+    function inicializarPaginacion() {
+        document.querySelectorAll('[data-pagination]').forEach(
+            function (contenedor) {
+                inicializarPaginacionTabla(contenedor);
+            }
+        );
+    }
+
+    /* ============================================================
+       INICIALIZACIÓN
+    ============================================================ */
 
     function inicializarListado() {
-        configurarBusqueda();
-        configurarFiltros();
-        configurarFormulario();
+        configurarEventosDelegados();
         actualizarEstadoFiltros();
         posicionarListado();
         inicializarPaginacion();
     }
 
-    /**
-     * ============================================================
-     * EXPONER FUNCIONES GLOBALMENTE
-     * ============================================================
-     *
-     * Se conservan porque el HTML utiliza estas funciones mediante
-     * atributos onclick() y otros scripts del módulo pueden llamarlas.
-     */
+    /* ============================================================
+       EXPONER FUNCIONES GLOBALES
+       Compatibilidad con botones y otros scripts del módulo.
+    ============================================================ */
 
     window.filtrarVacante = filtrarVacante;
     window.filtrarEstado = filtrarEstado;
@@ -663,12 +872,11 @@
     window.establecerFiltroVacante = establecerFiltroVacante;
     window.obtenerFiltrosActuales = obtenerFiltrosActuales;
     window.existenFiltrosActivos = existenFiltrosActivos;
+    window.aplicarFiltrosAjax = aplicarFiltrosAjax;
 
-    /**
-     * ============================================================
-     * ARRANQUE
-     * ============================================================
-     */
+    /* ============================================================
+       ARRANQUE
+    ============================================================ */
 
     if (document.readyState === 'loading') {
         document.addEventListener(
@@ -678,4 +886,5 @@
     } else {
         inicializarListado();
     }
+
 })(window, document);
