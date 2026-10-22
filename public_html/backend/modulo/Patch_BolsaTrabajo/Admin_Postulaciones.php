@@ -1,7 +1,8 @@
 <?php
 
 require_once __DIR__ . "/../../../includes/config.php";
-
+require_once __DIR__ . "/../../../includes/auth.php";
+requerirAdminPagina('../../../login.php');
 header('Content-Type: text/html; charset=utf-8');
 
 /* ============================================================
@@ -407,6 +408,43 @@ $description = 'Administración de postulaciones y CV generales de Kombitec';
 
 <body>
     <div class="patch-postulaciones-wrapper">
+
+        <!-- MENÚ DE USUARIO -->
+        <details class="patch-user-menu" id="patchUserMenu">
+            <summary
+                aria-label="Abrir menú de usuario"
+                aria-haspopup="true"
+            >
+                <span class="patch-user-avatar">
+                    <i class="fa fa-user" aria-hidden="true"></i>
+                </span>
+
+                <span class="patch-user-label">Mi cuenta</span>
+
+                <i
+                    class="fa fa-chevron-down patch-user-arrow"
+                    aria-hidden="true"
+                ></i>
+            </summary>
+
+            <div class="patch-user-dropdown">
+                <div class="patch-user-info">
+                    <strong>Sesión administrativa</strong>
+                    <span>Opciones de tu cuenta</span>
+                </div>
+
+                <div class="patch-user-divider"></div>
+
+                <a href="../../../cerrar_sesion.php">
+                    <i class="fa fa-sign-out-alt" aria-hidden="true"></i>
+                    <span>Cerrar sesión</span>
+                </a>
+            </div>
+        </details>
+
+
+
+
         <div class="patch-postulaciones-container">
 
             <div class="patch-postulaciones-actions">

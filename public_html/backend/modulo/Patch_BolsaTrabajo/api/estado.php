@@ -1,4 +1,6 @@
 <?php
+require_once __DIR__ . "/../../../../includes/auth.php";
+requerirAdminApi();
 require_once __DIR__ . "/../../../includes/config.php"; // conexión centralizada
 header('Content-Type: application/json; charset=utf-8');
 

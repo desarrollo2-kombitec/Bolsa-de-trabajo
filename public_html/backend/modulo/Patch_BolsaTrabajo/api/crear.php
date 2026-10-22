@@ -1,8 +1,11 @@
 <?php
+require_once __DIR__ . "/../../../../includes/auth.php";
+requerirAdminApi();
 
 error_reporting(E_ERROR | E_PARSE);
 
 require_once __DIR__ . "/../../../../includes/config.php";
+
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -557,6 +560,11 @@ if (
     // INSERTAR VACANTE
     // =====================================================
 
+    
+    /* ===================================================== */
+    /* INSERTAR VACANTE */
+    /* ===================================================== */
+
     $sql = "INSERT INTO patch_BolsaTrabajo
             (
                 token,
@@ -576,27 +584,11 @@ if (
             )
             VALUES
             (
-                ?,
-                ?,
-                ?,
-                ?,
-                ?,
-                ?,
-                ?,
-                ?,
-                ?,
-                ?,
-                0,
-                ?,
-                ?,
-                ?
+                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?
             )";
 
+    $stmt = $conn->prepare($sql);
 
-    $stmt =
-        $conn->prepare(
-            $sql
-        );
 
 
     if (

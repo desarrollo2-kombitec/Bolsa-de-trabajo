@@ -4,13 +4,214 @@ body{font-family:'Roboto',Arial,sans-serif;font-size:16px;color:#333;margin:0;pa
 
 .container{max-width:1200px;margin:0 auto;padding:0 20px}
 
-.patch-bolsa-wrapper{width:100%;min-height:calc(100vh - 100px);padding:38px 0 70px;background:radial-gradient(circle at 5% 5%,rgba(34,184,106,.08),transparent 25%),linear-gradient(180deg,#f2f8f4 0%,#f8faf9 55%,#f4f8f6 100%)}
+.patch-bolsa-wrapper{width:100%;min-height:calc(100vh - 100px);padding:8px 0 70px;background:radial-gradient(circle at 5% 5%,rgba(34,184,106,.08),transparent 25%),linear-gradient(180deg,#f2f8f4 0%,#f8faf9 55%,#f4f8f6 100%)}
 
 .patch-bolsa-header{position:relative;display:flex;justify-content:space-between;align-items:center;gap:25px;margin-bottom:30px;padding:30px 32px;background:linear-gradient(135deg,#12834d 0%,#159a5b 52%,#22b86a 100%);border-radius:var(--radius-lg);box-shadow:0 15px 35px rgba(21,154,91,.22);overflow:hidden}
 
 .patch-bolsa-header::before{content:"";position:absolute;width:240px;height:240px;right:-70px;top:-130px;border-radius:50%;background:rgba(255,255,255,.10)}
 
 .patch-bolsa-header::after{content:"";position:absolute;width:150px;height:150px;right:170px;bottom:-105px;border-radius:50%;background:rgba(255,255,255,.07)}
+
+
+
+/* =========================================
+   MENÚ DE USUARIO - PANEL ADMINISTRATIVO
+   ========================================= */
+
+/* Contenedor del menú: permanece en el flujo de la página */
+
+.patch-user-menu {
+    position: relative;
+    display: flex;
+    justify-content: flex-end;
+    width: 100%;
+    box-sizing: border-box;
+    margin: 0 0 2px;
+    padding: 2px 24px 0;
+    z-index: 1000;
+    font-family: 'Roboto', sans-serif;
+}
+
+
+/* Botón que abre el menú */
+.patch-user-menu > summary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    min-height: 44px;
+    padding: 8px 15px;
+    border: 1px solid #dce5df;
+    border-radius: 12px;
+    background: #ffffff;
+    color: #263b30;
+    box-shadow: 0 3px 12px rgba(20, 50, 32, 0.08);
+    cursor: pointer;
+    list-style: none;
+    user-select: none;
+    transition:
+        background-color 0.2s ease,
+        box-shadow 0.2s ease,
+        border-color 0.2s ease;
+}
+
+.patch-user-menu > summary::-webkit-details-marker {
+    display: none;
+}
+
+.patch-user-menu > summary::marker {
+    content: "";
+}
+
+.patch-user-menu > summary:hover {
+    background: #f4f8f5;
+    border-color: #b9d4c2;
+    box-shadow: 0 5px 16px rgba(20, 50, 32, 0.12);
+}
+
+.patch-user-menu > summary:focus-visible {
+    outline: 3px solid rgba(40, 130, 75, 0.3);
+    outline-offset: 3px;
+}
+
+/* Icono de usuario */
+.patch-user-avatar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    background: #e4f2e8;
+    color: #267544;
+    font-size: 15px;
+}
+
+/* Texto y flecha */
+.patch-user-label {
+    font-size: 14px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.patch-user-arrow {
+    margin-left: 2px;
+    font-size: 12px;
+    transition: transform 0.2s ease;
+}
+
+.patch-user-menu[open] .patch-user-arrow {
+    transform: rotate(180deg);
+}
+
+/* Caja desplegable */
+.patch-user-dropdown {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 24px;
+    width: 250px;
+    max-width: calc(100vw - 32px);
+    box-sizing: border-box;
+    padding: 8px;
+    border: 1px solid #e1e9e3;
+    border-radius: 14px;
+    background: #ffffff;
+    box-shadow: 0 12px 32px rgba(18, 40, 25, 0.16);
+    z-index: 1001;
+
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-6px);
+    transition:
+        opacity 0.18s ease,
+        transform 0.18s ease,
+        visibility 0.18s ease;
+}
+
+/* Mostrar el desplegable al abrir el details */
+.patch-user-menu[open] .patch-user-dropdown {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+}
+
+/* Información de la cuenta */
+.patch-user-dropdown .patch-user-info {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding: 12px;
+    color: #6b786f;
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.patch-user-dropdown .patch-user-info strong {
+    color: #263b30;
+    font-size: 14px;
+    font-weight: 700;
+}
+
+/* Separador */
+.patch-user-dropdown .patch-user-divider {
+    height: 1px;
+    margin: 4px 5px 7px;
+    background: #e8eee9;
+}
+
+/* Opción de cerrar sesión */
+.patch-user-dropdown > a {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 11px 12px;
+    border-radius: 9px;
+    color: #b42318;
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+    transition:
+        background-color 0.2s ease,
+        color 0.2s ease;
+}
+
+.patch-user-dropdown > a i {
+    width: 17px;
+    text-align: center;
+    font-size: 15px;
+}
+
+.patch-user-dropdown > a:hover {
+    background: #fff0ef;
+    color: #8f1c13;
+}
+
+/* Ajustes para pantallas pequeñas */
+@media (max-width: 600px) {
+    .patch-user-menu {
+        padding: 14px 16px 0;
+        margin-bottom: 18px;
+    }
+
+    .patch-user-dropdown {
+        right: 16px;
+        width: 240px;
+    }
+
+    .patch-user-menu > summary {
+        gap: 8px;
+        padding: 7px 11px;
+    }
+
+    .patch-user-label {
+        font-size: 13px;
+    }
+}
+
+
+
+
 
 .patch-bolsa-header>*{position:relative;z-index:2}
 

@@ -1223,231 +1223,117 @@ if (campoSoloImagen) {
 }
 
 
-// ==========================
-// Envío del formulario
-// ==========================
+
+ // ==========================
+ // Envío del formulario
+ // ==========================
 
 formVacante.addEventListener(
     'submit',
     async function(e) {
-
         e.preventDefault();
-
 
         // ==========================
         // Estado actual
         // ==========================
 
-        const soloImagen =
-            campoSoloImagen.checked;
-
-
-        const titulo =
-            campoTitulo.value.trim();
-
+        const soloImagen = campoSoloImagen.checked;
+        const titulo = campoTitulo.value.trim();
 
         // ==========================
         // Nuevos campos
         // ==========================
 
-        const descripcion =
-            campoDescripcion
-                ? campoDescripcion.value.trim()
-                : '';
-
-
-        const ubicacion =
-            campoUbicacion
-                ? campoUbicacion.value.trim()
-                : '';
-
-
-        const tipoJornada =
-            campoTipoJornada
-                ? campoTipoJornada.value.trim()
-                : '';
-
-
-        const modalidad =
-            campoModalidad
-                ? campoModalidad.value.trim()
-                : '';
-
+        const descripcion = campoDescripcion ? campoDescripcion.value.trim() : '';
+        const ubicacion = campoUbicacion ? campoUbicacion.value.trim() : '';
+        const tipoJornada = campoTipoJornada ? campoTipoJornada.value.trim() : '';
+        const modalidad = campoModalidad ? campoModalidad.value.trim() : '';
 
         // ==========================
         // Obtener HTML de editores
-        // ==========================
         // Se conserva el formato:
         // negritas, cursivas y listas.
+        // ==========================
 
-        const oferta =
-            campoOferta.innerHTML.trim();
-
-
-        const requisitos =
-            campoRequisitos.innerHTML.trim();
-
-
-        const responsabilidades =
-            campoResponsabilidades.innerHTML.trim();
-
+        const oferta = campoOferta.innerHTML.trim();
+        const requisitos = campoRequisitos.innerHTML.trim();
+        const responsabilidades = campoResponsabilidades.innerHTML.trim();
 
         // ==========================
         // Validar título
         // ==========================
 
         if (!titulo) {
-
-            mostrarToast(
-                'Ingresa el título de la vacante.',
-                true
-            );
-
+            mostrarToast('Ingresa el título de la vacante.', true);
             campoTitulo.focus();
-
             return;
-
         }
-
 
         // ==========================
         // Validar ubicación
         // ==========================
 
         if (!ubicacion) {
-
-            mostrarToast(
-                'Ingresa la ubicación de la vacante.',
-                true
-            );
-
-            if (campoUbicacion) {
-
-                campoUbicacion.focus();
-
-            }
-
+            mostrarToast('Ingresa la ubicación de la vacante.', true);
+            if (campoUbicacion) campoUbicacion.focus();
             return;
-
         }
-
 
         // ==========================
         // Validar tipo de jornada
         // ==========================
 
         if (!tipoJornada) {
-
-            mostrarToast(
-                'Selecciona el tipo de jornada.',
-                true
-            );
-
-            if (campoTipoJornada) {
-
-                campoTipoJornada.focus();
-
-            }
-
+            mostrarToast('Selecciona el tipo de jornada.', true);
+            if (campoTipoJornada) campoTipoJornada.focus();
             return;
-
         }
-
 
         // ==========================
         // Validar modalidad
         // ==========================
 
         if (!modalidad) {
-
-            mostrarToast(
-                'Selecciona la modalidad.',
-                true
-            );
-
-            if (campoModalidad) {
-
-                campoModalidad.focus();
-
-            }
-
+            mostrarToast('Selecciona la modalidad.', true);
+            if (campoModalidad) campoModalidad.focus();
             return;
-
         }
-
 
         // ==========================
         // Validar textos
-        // solamente cuando NO es
+        // Solamente cuando NO es
         // modo Solo Imagen
         // ==========================
 
         if (!soloImagen) {
-
             if (!oferta) {
-
-                mostrarToast(
-                    'Ingresa lo que se ofrece.',
-                    true
-                );
-
+                mostrarToast('Ingresa lo que se ofrece.', true);
                 campoOferta.focus();
-
                 return;
-
             }
-
 
             if (!requisitos) {
-
-                mostrarToast(
-                    'Ingresa los requisitos.',
-                    true
-                );
-
+                mostrarToast('Ingresa los requisitos.', true);
                 campoRequisitos.focus();
-
                 return;
-
             }
-
 
             if (!responsabilidades) {
-
-                mostrarToast(
-                    'Ingresa las responsabilidades.',
-                    true
-                );
-
+                mostrarToast('Ingresa las responsabilidades.', true);
                 campoResponsabilidades.focus();
-
                 return;
-
             }
-
         }
-
 
         // ==========================
         // Validar imagen en modo
         // Solo Imagen
         // ==========================
 
-        if (
-            soloImagen &&
-            !imagenSeleccionada &&
-            !imagenExistente
-        ) {
-
-            mostrarToast(
-                'Debes seleccionar una imagen para una vacante de solo imagen.',
-                true
-            );
-
+        if (soloImagen && !imagenSeleccionada && !imagenExistente) {
+            mostrarToast('Debes seleccionar una imagen para una vacante de solo imagen.', true);
             return;
-
         }
-
 
         // ==========================
         // Validar que si se eliminó
@@ -1455,150 +1341,87 @@ formVacante.addEventListener(
         // exista una nueva.
         // ==========================
 
-        if (
-            soloImagen &&
-            eliminarImagenExistente &&
-            !imagenSeleccionada
-        ) {
-
-            mostrarToast(
-                'Debes seleccionar una imagen para una vacante de solo imagen.',
-                true
-            );
-
+        if (soloImagen && eliminarImagenExistente && !imagenSeleccionada) {
+            mostrarToast('Debes seleccionar una imagen para una vacante de solo imagen.', true);
             return;
-
         }
-
 
         // ==========================
         // Crear FormData
         // ==========================
 
-        const datos =
-            new FormData();
-
+        const datos = new FormData();
 
         // ==========================
         // Datos básicos
         // ==========================
 
-        datos.append(
-            'titulo',
-            titulo
-        );
-
+        datos.append('titulo', titulo);
 
         // ==========================
         // Nuevos campos
         // ==========================
 
-        datos.append(
-            'descripcion',
-            descripcion
-        );
-
-
-        datos.append(
-            'ubicacion',
-            ubicacion
-        );
-
-
-        datos.append(
-            'tipo_jornada',
-            tipoJornada
-        );
-
-
-        datos.append(
-            'modalidad',
-            modalidad
-        );
-
+        datos.append('descripcion', descripcion);
+        datos.append('ubicacion', ubicacion);
+        datos.append('tipo_jornada', tipoJornada);
+        datos.append('modalidad', modalidad);
 
         // ==========================
         // Contenido enriquecido
         // ==========================
 
-        datos.append(
-            'lo_que_se_ofrece',
-            oferta
-        );
+        datos.append('lo_que_se_ofrece', oferta);
+        datos.append('requisitos', requisitos);
+        datos.append('responsabilidades', responsabilidades);
 
+        // =====================================================
+        // NUEVO: DEPURACIÓN DEL HTML ENVIADO AL SERVIDOR
+        // Estos mensajes permiten revisar el contenido HTML
+        // de los tres editores para investigar el error 406
+        // de ModSecurity cuando se utilizan cursivas o viñetas.
+        // No modifican ni eliminan el formato del contenido.
+        // =====================================================
 
-        datos.append(
-            'requisitos',
-            requisitos
-        );
-
-
-        datos.append(
-            'responsabilidades',
-            responsabilidades
-        );
-
+        console.log('NUEVO - HTML de oferta:', datos.get('lo_que_se_ofrece'));
+        console.log('NUEVO - HTML de requisitos:', datos.get('requisitos'));
+        console.log('NUEVO - HTML de responsabilidades:', datos.get('responsabilidades'));
 
         // ==========================
         // Fecha de cierre
-        // ==========================
         // El campo está oculto en el
         // modal, pero se conserva su
         // funcionalidad.
+        // ==========================
 
-        datos.append(
-            'fecha_cierre',
-            campoFechaCierre.value
-        );
-
+        datos.append('fecha_cierre', campoFechaCierre.value);
 
         // ==========================
         // Estado
         // ==========================
 
-        datos.append(
-            'activo',
-            campoActivo.checked
-                ? '1'
-                : '0'
-        );
-
+        datos.append('activo', campoActivo.checked ? '1' : '0');
 
         // ==========================
         // Modo Solo Imagen
         // ==========================
 
-        datos.append(
-            'solo_imagen',
-            soloImagen
-                ? '1'
-                : '0'
-        );
-
+        datos.append('solo_imagen', soloImagen ? '1' : '0');
 
         // ==========================
         // Imagen nueva
-        // ==========================
         // Solamente se envía cuando
         // realmente se seleccionó una
         // imagen nueva.
+        // ==========================
 
         if (imagenSeleccionada) {
-
-            datos.append(
-                'imagen',
-                imagenSeleccionada,
-                imagenSeleccionada.name
-            );
-
+            datos.append('imagen', imagenSeleccionada, imagenSeleccionada.name);
         }
-
 
         // ==========================
         // Eliminar imagen existente
-        // ==========================
         // Solamente se envía cuando:
-        //
         // 1. Existe una imagen anterior.
         // 2. El usuario la quitó.
         // 3. No se seleccionó una nueva.
@@ -1606,90 +1429,52 @@ formVacante.addEventListener(
         // Si hay una nueva imagen,
         // editar.php se encargará del
         // reemplazo.
+        // ==========================
 
-        if (
-            eliminarImagenExistente &&
-            imagenExistente &&
-            !imagenSeleccionada
-        ) {
-
-            datos.append(
-                'eliminar_imagen',
-                '1'
-            );
-
+        if (eliminarImagenExistente && imagenExistente && !imagenSeleccionada) {
+            datos.append('eliminar_imagen', '1');
         }
-
 
         // ==========================
         // Acción
         // ==========================
 
-        let accion =
-            'crear';
+        let accion = 'crear';
 
-
-        if (
-            modoFormulario === 'editar'
-        ) {
-
-            accion =
-                'editar';
-
-
-            datos.append(
-                'id',
-                campoId.value
-            );
-
+        if (modoFormulario === 'editar') {
+            accion = 'editar';
+            datos.append('id', campoId.value);
         }
-
 
         // ==========================
         // Estado de guardado
         // ==========================
 
-        btnGuardarVacante.disabled =
-            true;
-
+        btnGuardarVacante.disabled = true;
 
         btnGuardarVacante.innerHTML = `
             <i class="fa fa-spinner fa-spin"></i>
             Guardando...
         `;
 
-
         // ==========================
         // Enviar a API
         // ==========================
 
         try {
-
-            const respuesta =
-                await peticion(
-                    accion,
-                    datos
-                );
-
+            const respuesta = await peticion(accion, datos);
 
             // ==========================
             // Validar respuesta
             // ==========================
 
-            if (
-                !respuesta ||
-                !respuesta.ok
-            ) {
-
+            if (!respuesta || !respuesta.ok) {
                 throw new Error(
-                    respuesta &&
-                    respuesta.mensaje
+                    respuesta && respuesta.mensaje
                         ? respuesta.mensaje
                         : 'No fue posible guardar la vacante.'
                 );
-
             }
-
 
             // ==========================
             // Cerrar modal
@@ -1697,55 +1482,37 @@ formVacante.addEventListener(
 
             cerrarModal();
 
-
             // ==========================
             // Recargar listado
             // ==========================
 
             await cargarVacantes();
 
-
             // ==========================
             // Mostrar mensaje
             // ==========================
 
-            mostrarToast(
-                respuesta.mensaje ||
-                'Vacante guardada correctamente.'
-            );
-
+            mostrarToast(respuesta.mensaje || 'Vacante guardada correctamente.');
 
         } catch (error) {
-
-            console.error(
-                'Error al guardar vacante:',
-                error
-            );
-
+            console.error('Error al guardar vacante:', error);
 
             mostrarToast(
-                error.message ||
-                'Ocurrió un error al guardar la vacante.',
+                error.message || 'Ocurrió un error al guardar la vacante.',
                 true
             );
 
-
         } finally {
-
             // ==========================
             // Restaurar botón
             // ==========================
 
-            btnGuardarVacante.disabled =
-                false;
-
+            btnGuardarVacante.disabled = false;
 
             btnGuardarVacante.innerHTML = `
                 <i class="fa fa-save"></i>
                 Guardar vacante
             `;
-
         }
-
     }
 );
