@@ -673,93 +673,73 @@ function mostrarVistaImagenNueva(file) {
 // ==========================
 // Mostrar imagen existente
 // ==========================
-
-function mostrarVistaImagenExistente(
-    urlImagen
-) {
-
-    if (!urlImagen) {
-
+function mostrarVistaImagenExistente(urlImagen) {
+    if (!urlImagen || !campoImagenPreview) {
         limpiarVistaImagen();
-
         return;
-
     }
 
-
-    let urlFinal =
-        urlImagen;
-
+    // Obtener únicamente el nombre del archivo.
+    // Funciona con URL antiguas y rutas relativas.
+    let nombreArchivo = '';
 
     try {
+        const urlLimpia = String(urlImagen).trim();
+        const url = new URL(urlLimpia, window.location.origin);
 
-        urlFinal =
-            new URL(
-                urlImagen,
-                window.location.href
-            ).href;
-
+        nombreArchivo = url.pathname.split('/').pop();
     } catch (error) {
-
-        console.warn(
-            'No fue posible construir la URL de la imagen:',
-            error
-        );
-
+        nombreArchivo = String(urlImagen)
+            .split(/[\\/]/)
+            .pop()
+            .split('?')[0];
     }
 
+    if (!nombreArchivo) {
+        limpiarVistaImagen();
+        return;
+    }
 
-    // ==========================
-    // No es una vista previa local
-    // ==========================
+    // Ruta pública correcta de la aplicación en IIS.
+    const urlFinal =
+        '/BolsaTrabajo/backend/modulo/Patch_BolsaTrabajo/uploads/img_vacante/' +
+        encodeURIComponent(nombreArchivo);
 
+    // Liberar una vista previa temporal anterior, si existe.
     const urlAnterior =
-        campoImagenPreview.dataset
-            .previewUrl || '';
-
+        campoImagenPreview.dataset.previewUrl || '';
 
     if (urlAnterior) {
-
-        try {
-
-            URL.revokeObjectURL(
-                urlAnterior
-            );
-
-        } catch (error) {
-
-            console.warn(
-                'No fue posible liberar la vista previa anterior.',
-                error
-            );
-
-        }
-
+        URL.revokeObjectURL(urlAnterior);
     }
 
+    campoImagenPreview.dataset.previewUrl = '';
+    campoImagenPreview.onerror = function () {
+        console.error(
+            'No se pudo cargar la imagen existente:',
+            this.src,
+            'Verifica los permisos de IIS y que el archivo exista.'
+        );
+    };
 
-    campoImagenPreview.dataset.previewUrl =
-        '';
+    campoImagenPreview.onload = function () {
+        console.log('Imagen existente cargada correctamente:', this.src);
+    };
 
+    campoImagenPreview.src = urlFinal;
+    campoImagenPreview.alt = 'Imagen actual de la vacante';
 
-    campoImagenPreview.src =
-        urlFinal;
+    if (campoImagenNombre) {
+        campoImagenNombre.textContent = nombreArchivo;
+    }
 
-    campoImagenPreview.alt =
-        'Imagen actual de la vacante';
+    if (imagenPreviewContainer) {
+        imagenPreviewContainer.hidden = false;
+    }
 
-
-    campoImagenNombre.textContent =
-        'Imagen actual';
-
-
-    imagenPreviewContainer.hidden =
-        false;
-
-
-    imagenDropzone.style.display =
-        'none';
-
+    if (imagenDropzone) {
+        imagenDropzone.style.display = 'none';
+    }
 }
 
 

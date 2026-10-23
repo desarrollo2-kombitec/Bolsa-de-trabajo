@@ -29,202 +29,164 @@ function respuestaJSON($ok, $mensaje = '', $datos = null)
 // GUARDAR IMAGEN DE VACANTE
 // =========================================================
 
+// =========================================================
+// GUARDAR IMAGEN DE VACANTE
+// =========================================================
+
 function guardarImagenVacante($archivo)
 {
-    if (
-        !isset($archivo) ||
-        !is_array($archivo)
-    ) {
-
+    if (!isset($archivo) || !is_array($archivo)) {
         return [
             'ok' => false,
             'mensaje' => 'No se recibió ninguna imagen.'
         ];
     }
 
-
-    // =====================================================
-    // VALIDAR ERROR DE SUBIDA
-    // =====================================================
-
+    // Validar error de subida
     if (
         !isset($archivo['error']) ||
         $archivo['error'] !== UPLOAD_ERR_OK
     ) {
-
         return [
             'ok' => false,
             'mensaje' => 'No fue posible subir la imagen.'
         ];
     }
 
-
-    // =====================================================
-    // VALIDAR ARCHIVO SUBIDO
-    // =====================================================
-
+    // Validar archivo temporal
     if (
         !isset($archivo['tmp_name']) ||
         !is_uploaded_file($archivo['tmp_name'])
     ) {
-
         return [
             'ok' => false,
             'mensaje' => 'El archivo de imagen no es válido.'
         ];
     }
 
-
-    // =====================================================
-    // TIPOS PERMITIDOS
-    // =====================================================
-
+    // Tipos permitidos
     $tiposPermitidos = [
         'image/jpeg' => 'jpg',
         'image/png'  => 'png',
         'image/webp' => 'webp'
     ];
 
+    // Validar MIME real
+    $finfo = new finfo(FILEINFO_MIME_TYPE);
+    $tipoMime = $finfo->file($archivo['tmp_name']);
 
-    // =====================================================
-    // VALIDAR MIME REAL
-    // =====================================================
-
-    $finfo =
-        new finfo(FILEINFO_MIME_TYPE);
-
-
-    $tipoMime =
-        $finfo->file(
-            $archivo['tmp_name']
-        );
-
-
-    if (
-        !isset(
-            $tiposPermitidos[$tipoMime]
-        )
-    ) {
-
+    if (!isset($tiposPermitidos[$tipoMime])) {
         return [
             'ok' => false,
-            'mensaje' =>
-                'La imagen debe estar en formato JPG, PNG o WEBP.'
+            'mensaje' => 'La imagen debe estar en formato JPG, PNG o WEBP.'
         ];
     }
 
-
-    // =====================================================
-    // VALIDAR QUE REALMENTE SEA UNA IMAGEN
-    // =====================================================
-
-    $informacionImagen =
-        @getimagesize(
-            $archivo['tmp_name']
-        );
-
-
-    if (
-        $informacionImagen === false
-    ) {
-
+    // Validar imagen real
+    if (@getimagesize($archivo['tmp_name']) === false) {
         return [
             'ok' => false,
-            'mensaje' =>
-                'El archivo recibido no es una imagen válida.'
+            'mensaje' => 'El archivo recibido no es una imagen válida.'
         ];
     }
 
-
-    // =====================================================
-    // DIRECTORIO FÍSICO
-    // =====================================================
-
-    $directorio =
-        __DIR__ .
-        '/../uploads/img_vacante/';
-
+    // Directorio físico
+    $directorio = __DIR__ . '/../uploads/img_vacante/';
 
     if (!is_dir($directorio)) {
-
-        if (
-            !mkdir(
-                $directorio,
-                0755,
-                true
-            )
-        ) {
-
+        if (!mkdir($directorio, 0755, true) && !is_dir($directorio)) {
             return [
                 'ok' => false,
-                'mensaje' =>
-                    'No fue posible crear la carpeta de imágenes.'
+                'mensaje' => 'No fue posible crear la carpeta de imágenes.'
             ];
         }
     }
 
+    // Generar nombre único
+    $extension = $tiposPermitidos[$tipoMime];
 
-    // =====================================================
-    // GENERAR NOMBRE ÚNICO
-    // =====================================================
+    $nombreArchivo = 'vacante_' .
+        bin2hex(random_bytes(16)) .
+        '.' . $extension;
 
-    $extension =
-        $tiposPermitidos[$tipoMime];
+    $rutaFisica = $directorio . $nombreArchivo;
 
-
-    $nombreArchivo =
-        'vacante_' .
-        bin2hex(
-            random_bytes(16)
-        ) .
-        '.' .
-        $extension;
-
-
-    $rutaFisica =
-        $directorio .
-        $nombreArchivo;
-
-
-    // =====================================================
-    // GUARDAR IMAGEN
-    // =====================================================
-
-    if (
-        !move_uploaded_file(
-            $archivo['tmp_name'],
-            $rutaFisica
-        )
-    ) {
-
+    // Guardar imagen
+    if (!move_uploaded_file($archivo['tmp_name'], $rutaFisica)) {
         return [
             'ok' => false,
-            'mensaje' =>
-                'No fue posible guardar la imagen en el servidor.'
+            'mensaje' => 'No fue posible guardar la imagen en el servidor.'
         ];
     }
 
+    // Confirmar que existe
+    if (!is_file($rutaFisica)) {
+        return [
+            'ok' => false,
+            'mensaje' => 'La imagen no se encontró después de guardarla.'
+        ];
+    }
 
     // =====================================================
-    // URL PÚBLICA
+    // CORREGIR PERMISOS HEREDADOS EN WINDOWS / IIS
     // =====================================================
 
+    if (PHP_OS_FAMILY === 'Windows') {
+        $funcionesDeshabilitadas = array_map(
+            'trim',
+            explode(',', (string) ini_get('disable_functions'))
+        );
+
+        if (
+            !function_exists('exec') ||
+            in_array('exec', $funcionesDeshabilitadas, true)
+        ) {
+            error_log(
+                'No se pueden corregir permisos de imagen: exec no disponible. Archivo: ' .
+                $rutaFisica
+            );
+
+            return [
+                'ok' => false,
+                'mensaje' => 'La imagen se guardó, pero el servidor no permite configurar sus permisos automáticamente.'
+            ];
+        }
+
+        $salida = [];
+        $codigo = 1;
+
+        $comando = 'icacls ' .
+            escapeshellarg($rutaFisica) .
+            ' /reset';
+
+        exec($comando . ' 2>&1', $salida, $codigo);
+
+        if ($codigo !== 0) {
+            error_log(
+                'Error al corregir permisos de imagen: ' .
+                $rutaFisica . ' | ' .
+                implode(' ', $salida)
+            );
+
+            return [
+                'ok' => false,
+                'mensaje' => 'La imagen se guardó, pero no fue posible configurar sus permisos. Contacta al administrador.'
+            ];
+        }
+    }
+
+    // URL pública
     $urlImagen =
         '/Patch_BolsaTrabajo/public_html/backend/modulo/Patch_BolsaTrabajo/uploads/img_vacante/' .
         $nombreArchivo;
 
-
     return [
         'ok' => true,
-        'mensaje' =>
-            'Imagen guardada correctamente.',
-        'url' =>
-            $urlImagen,
-        'ruta' =>
-            $rutaFisica
+        'mensaje' => 'Imagen guardada correctamente.',
+        'url' => $urlImagen,
+        'ruta' => $rutaFisica
     ];
 }
-
 
 // =========================================================
 // OBTENER RUTA FÍSICA DE UNA IMAGEN EXISTENTE

@@ -57,13 +57,22 @@ function limpiarContenidoRichText($contenido): string {
 }
 function obtenerRutaImagen($urlImagen): string {
     $urlImagen = trim((string)($urlImagen ?? ''));
-    if ($urlImagen === '') return '';
-    if (preg_match('#^https?://#i', $urlImagen)) return $urlImagen;
+
+    if ($urlImagen === '') {
+        return '';
+    }
+
+    // Si ya es una URL completa, conservarla.
+    if (preg_match('#^https?://#i', $urlImagen)) {
+        return $urlImagen;
+    }
+
     $urlImagen = str_replace('\\', '/', $urlImagen);
-    if (strpos($urlImagen, '/') === 0) return $urlImagen;
-    if (strpos($urlImagen, 'backend/') === 0) return $urlImagen;
-    if (strpos($urlImagen, 'Patch_BolsaTrabajo/') === 0) return $urlImagen;
-    return 'backend/modulo/Patch_BolsaTrabajo/uploads/img_vacante/' . ltrim($urlImagen, '/');
+    $nombreImagen = basename($urlImagen);
+
+    // La aplicación está publicada en IIS como /BolsaTrabajo.
+    return '/BolsaTrabajo/backend/modulo/Patch_BolsaTrabajo/uploads/img_vacante/'
+        . rawurlencode($nombreImagen);
 }
 
 // OBTENER TOKEN
